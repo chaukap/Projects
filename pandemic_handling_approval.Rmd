@@ -1,0 +1,174 @@
+---
+title: 'Are people who believe that science is important for making government decisions about COVID-19 more likely to disapprove of the way their governor is handling the pandemic?'
+author: "Chandler Haukap, Hassan Saad and Courtney Smith"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r load packages, echo=TRUE, warning=FALSE, message=FALSE}
+library(dplyr)
+library(ggplot2) 
+library(tidyverse)
+library(stats)
+library(haven)
+library(tinytex)
+```
+
+```{r load and clean data, echo=FALSE, warning=TRUE, message=FALSE}
+df_2020 <- read_dta(file = "./data/data_2020.dta")
+
+question3Data <- df_2020[, c("V202310", "V201145", "V201146")]
+colnames(question3Data) <- c("ImportanceOfScience", "ApproveGovernorsHandling",
+                             "StronglyOrNotStrongly")
+question3Data <- question3Data[question3Data$ApproveGovernorsHandling == 1 |
+                               question3Data$ApproveGovernorsHandling == 2, ]
+question3Data <- question3Data[question3Data$ImportanceOfScience > 0, ]
+
+```
+
+
+## Importance and Context
+
+Are people who believe that science is important for making government decisions about COVID-19 more likely to disapprove of the way their governor is handling the pandemic?
+
+Science is political. Or, more accurately, science has been _politicized_.
+
+The recent pandemic has proven beyond a doubt that topics that should remain in the realm of logic, truth, and academic rigor can be twisted to suit the needs of political organizations and news outlets. Where we should find transparency we find manipulation, and where we should find honesty we find bias. 
+
+Our current culture war has left a small but growing number of individuals so disillusioned with the scientific process that they reject conventional science outright. Studying the broader societal impact of the politicization of science is our only hope of finding a new normal that centers around truth as opposed to fear.
+
+Our data, as described below, gives us a novel opportunity to investigate the impact that the denial of the role of science in decision-making has on a person's view of their elected officials. Specifically, we will explore whether or not a belief that science is important in making decisions about COVID-19 causes people to be more critical of their governor's handling of the pandemic. Hopefully, this research can help reveal broader trends arising out of our healing society.
+
+## Description of Data
+
+We will address this question using data from the preliminary release of the 2020 American National Election Studies (ANES). This dataset was pooled from 8,280 pre-election interviews conducted by web, video, or telephone. Preliminary in this context means that the data lacks some of the variables and processing that the full report will contain.
+
+The variables of interest in addressing this question are:
+
+### 1) *V202310:* In general, how important should science be for making government decisions about COVID-19?
+
+Respondents were given the following options for answering this question.
+```{r echo=FALSE}
+knitr::kable(names(attributes(question3Data$ImportanceOfScience)$labels), 
+             col.names = "",
+             caption = "Response options to the importance of science in making decisions about COVID-19")
+
+respondents <- length(question3Data$ImportanceOfScience)
+extremely <- 100 * sum(question3Data$ImportanceOfScience == 5) / respondents
+not <- 100 * sum(question3Data$ImportanceOfScience == 1) / respondents
+```
+
+In processing the data, we removed all respondents that did not answer this question (responses -9, -7, -6, and -5). With these people removed we found that respondents overwhelmingly believed that science is important in making government decisions about the pandemic. `r extremely` percent responded that science is extremely important, while only `r not` percent responded that science is not at all important.
+
+### 2) *V201145:* Do you approve or disapprove of the way [Governor of respondent’s preloaded state] has handled the COVID-19 pandemic?
+
+Respondents were given the following options for this question:
+```{r echo=FALSE}
+knitr::kable(names(attributes(question3Data$ApproveGovernorsHandling)$labels), 
+             col.names = "",
+             caption = "Response options for the approval of the governor's handling of the pandemic.")
+```
+
+We removed all non-answers (values -9 and -8) then converted the responses to a binary variable where TRUE corresponds to approval and FALSE corresponds to disapproval.
+
+```{r}
+question3Data$ApproveGovernorsHandling <- question3Data$ApproveGovernorsHandling == 1
+```
+
+```{r echo=FALSE}
+approved <- 100 * sum(question3Data$ApproveGovernorsHandling == TRUE) / respondents
+disapproved <- 100 * sum(question3Data$ApproveGovernorsHandling == FALSE) / respondents
+```
+
+Of the `r respondents` respondents that answered this question `r approved`% approved of their governor's handling of the pandemic and `r disapproved`% disapproved.
+
+### Combining approval of governor and importance of science
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+difficulty_histogram <- question3Data %>% 
+  ggplot() + 
+  aes(x = factor(ImportanceOfScience), fill = ApproveGovernorsHandling) + 
+  geom_histogram(position = 'dodge', color = 'black', stat="count") + 
+  scale_fill_manual(values = c("red", "blue"), 
+                    labels = c("Disapprove", "Approve"),
+                    name = "Approve of Governor's\nHandling of COVID-19") +
+  labs(
+    title    = 'Approval or disaproval of the respondent\'s governor\'s handling of the\nCOVID-19 pandemic grouped by how important the respondent believes\nscience is in making government decisions about the pandemic.',
+    x        = 'Importance of Science',
+    y        = 'People', 
+    fill     = 'Approve of Governor'
+  ) +
+  scale_x_discrete(labels= c("Not at all important", "A little important", 
+                             "Moderately important", "Very important", 
+                             "Extremely important"),
+                   guide = guide_axis(angle = -15)) 
+
+difficulty_histogram
+```
+
+### Grouping the data
+
+To perform a statistical test on this data set we must divide the data into two groups. These groups need to be
+
+1) People who believe that science is important for making government decisions about COVID-19
+2) People who believe that science is ***NOT*** important for making government decisions about COVID-19
+
+Unfortunately, our survey participants were given five options when asked about the importance of science. To divide our data into two groups we chose to group anyone that believes that science is at least a little important in making decisions about COVID-19.
+
+```{r}
+question3Data$IsScienceImportant <- question3Data$ImportanceOfScience > 1
+```
+
+```{r echo=FALSE}
+important <- sum(question3Data$IsScienceImportant)
+notImportant <- sum(question3Data$IsScienceImportant == FALSE)
+```
+
+The resultant groups differ in size with `r important` believing that science is at least a little important and `r notImportant` believing that science is not at all important. Although the sizes of the samples differ, we can still use a t-test to compare their means.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+importantApprove <- sum(question3Data$ApproveGovernorsHandling[question3Data$IsScienceImportant]) / length(question3Data$ApproveGovernorsHandling[question3Data$IsScienceImportant])
+
+notImportantApprove <- sum(question3Data$ApproveGovernorsHandling[question3Data$IsScienceImportant == FALSE]) / length(question3Data$ApproveGovernorsHandling[question3Data$IsScienceImportant == FALSE])
+
+tab <- data.frame(c("Not important", "Important"), c(notImportantApprove, importantApprove))
+colnames(tab) <- c("Is science important?", "Approval")
+
+knitr::kable(tab, caption = 'Percent of respondents that approve of their governor\'s handling of the pandemic grouped by whether or not they believe that science is important in government decisions about the pandemic')
+```
+
+
+## Most appropriate test 
+Because we are comparing a binary variable (approve or disapprove) between two samples of different size we will use a t-test to compare the proportion of people that approve of the governor.
+
+This test requires 3 assumptions:
+
+1) Metric scale: We are comparing the proportion of people that approve of the governor's handling of COVID-19, this is a metric variable between 0 and 1. Therefore, this assumption holds.
+
+2) IID data: Participants in this study were selected from a random draw from the USPS computerized delivery sequence file (C-DSF), with all included residential addresses across the 50 states and Washington DC having equal probability of selection. A cash incentive was used to encourage participation. While there is undoubtedly some bias associated with the individuals that chose to participate in the survey, the selection process was fair and we've concluded that this portion of the sample is independent and identically distributed enough to warrant research on the resultant data.
+The other source of data for this study was everyone that participated in the 2016 version of ANES. Emails were sent to these former participants inviting them to participate again. Because this portion of the sample is dependent on participation in the 2016 study, there is a concern that the data isn't independent.
+
+3) no major deviations from normality: Because COVID-19 is a very recent development, there is not a body of research that could hint at what the expected distribution of this data would be. However, the average approval of governors, in general, tends to be normally distributed. Given that our smallest group contains 117 people the central limit theorem should be sufficient to ensure that the sample mean is normally distributed.
+
+Because the question asks if one group is ***more*** likely to disapprove of the governor's handling of COVID-19 we will use a one-tailed test.
+
+## Hypothesis
+
+### Null
+
+People who believe that science is important for making government decisions about COVID-19 are less or equally likely to disapprove of the way their governor is handling the pandemic.
+
+### Alternative
+
+People who believe that science is important for making government decisions about COVID-19 are more likely to disapprove of the way their governor is handling the pandemic.
+
+## Test, results and interpretation
+```{r comment=NA}
+t.test(question3Data$ApproveGovernorsHandling ~ question3Data$IsScienceImportant, alternative = "g")
+```
+
+We have failed to find any evidence to support the hypothesis that people who believe that science is important for making government decisions about COVID-19 more likely to disapprove of the way their governor is handling the pandemic.
+
+On the contrary, this data set suggests that a future experiment should explore the hypothesis that people who believe that science is important for making government decisions about COVID-19 are _less_ likely to disapprove of the way their governor is handling the pandemic. We did not set out to address this, and therefore we won't attempt any further tests in this report. But we believe that testing this hypothesis could prove more fruitful based on an exploration of our data.
